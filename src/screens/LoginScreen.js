@@ -23,26 +23,27 @@ export default function LoginScreen({ navigation }) {
     return re.test(e);
   }
 
-  async function handleLogin() {
-    if (!email || !password) {
-      Alert.alert("Erro", "Preencha email e senha.");
-      return;
-    }
-
-    if (!validEmail(email)) {
-      Alert.alert("Erro", "Digite um email válido.");
-      return;
-    }
-
-    setLoading(true);
-
-    // Simula login
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    setLoading(false);
-
-    navigation.navigate("Register");
+ async function handleLogin() {
+  if (!email || !password) {
+    Alert.alert("Erro", "Preencha email e senha.");
+    return;
   }
+
+  if (!validEmail(email)) {
+    Alert.alert("Erro", "Digite um email válido.");
+    return;
+  }
+
+  setLoading(true);
+
+
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  setLoading(false);
+
+  navigation.replace("Dashboard");
+}
+
 
   return (
     <KeyboardAvoidingView
