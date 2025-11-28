@@ -5,6 +5,9 @@ import { createStackNavigator } from '@react-navigation/stack';
 import LoginScreen from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import DashboardScreen from "../screens/DashboardScreen";
+import AddProductScreen from "../screens/AddProductScreen";
+import EditProductScreen from "../screens/EditProductScreen.js";
+
 
 const Stack = createStackNavigator();
 
@@ -30,6 +33,20 @@ export default function AppNavigator() {
           component={DashboardScreen}
           options={{ headerShown: false }}
         />
+
+        <Stack.Screen
+          name="AddProduct"
+          component={AddProductScreen}
+          options={{ headerShown: false }}
+        />
+
+        <Stack.Screen
+          name="EditProduct"
+          component={EditProductScreen}
+          options={{ headerShown: false }}
+        />
+
+
 
       </Stack.Navigator>
     </NavigationContainer>

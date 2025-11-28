@@ -1,73 +1,151 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
+import React, { useEffect, useState, useCallback } from "react";
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
   TouchableOpacity,
-  FlatList,
-  SafeAreaView,
+  RefreshControl,
+  ActivityIndicator
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 
-export default function DashboardScreen({ navigation }) {
-  const [produtos, setProdutos] = useState([
-    { id: "1", nome: "Tênis Nike Air", quantidade: 12 },
-    { id: "2", nome: "Camiseta DryFit", quantidade: 8 },
-    { id: "3", nome: "Calça Moletom", quantidade: 22 },
-  ]);
+// 👉 importa o supabase
+import { supabase } from "../lib/supabase";
 
-  const totalProdutos = produtos.length;
-  const emBaixa = produtos.filter((p) => p.quantidade < 10).length;
+export default function DashboardScreen() {
 
-  const renderItem = ({ item }) => (
-    <View style={styles.itemCard}>
-      <Text style={styles.itemNome}>{item.nome}</Text>
-      <Text style={styles.itemQtd}>{item.quantidade} un</Text>
-    </View>
-  );
+  const navigation = useNavigation();
 
+  // estado dos produtos
+  const [produtos, setProdutos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ================================
+  // BUSCAR PRODUTOS DO SUPABASE
+  // ================================
+  async function carregarProdutos() {
+    try {
+      setLoading(true);
+
+      // pega usuário logado
+      const { data: userData } = await supabase.auth.getUser();
+      const user = userData?.user;
+
+      if (!user) return;
+
+      // busca produtos do usuário logado
+      const { data, error } = await supabase
+        .from("produtos")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.log("ERRO AO BUSCAR PRODUTOS:", error);
+        return;
+      }
+
+      setProdutos(data);
+
+    } catch (err) {
+      console.log("ERRO FATAL:", err);
+
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // carrega ao abrir a tela
+  useEffect(() => {
+    carregarProdutos();
+  }, []);
+
+  // para puxar pra atualizar
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await carregarProdutos();
+    setRefreshing(false);
+  }, []);
+
+  // ================================
+  // RENDER
+  // ================================
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
+    <View style={styles.container}>
+
+      {/* HEADER */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Dashboard</Text>
       </View>
 
-      {/* Cards resumo */}
-      <View style={styles.cardsContainer}>
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Produtos</Text>
-          <Text style={styles.cardValue}>{totalProdutos}</Text>
+      {/* LOADER */}
+      {loading && (
+        <View style={{ marginTop: 40 }}>
+          <ActivityIndicator size="large" color="#2E7D32" />
         </View>
+      )}
 
-        <View style={[styles.card, { borderColor: "#D32F2F" }]}>
-          <Text style={styles.cardLabel}>Em baixa</Text>
-          <Text style={[styles.cardValue, { color: "#D32F2F" }]}>
-            {emBaixa}
-          </Text>
-        </View>
-      </View>
+      {/* CONTEÚDO */}
+      {!loading && (
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
 
-      {/* Título lista */}
-      <Text style={styles.listTitle}>Produtos</Text>
+          {/* CARDS */}
+          <View style={styles.cardsRow}>
+            
+            <View style={styles.card}>
+              <Text style={styles.cardLabel}>Produtos</Text>
+              <Text style={styles.cardNumber}>{produtos.length}</Text>
+            </View>
 
-      {/* Lista */}
-      <FlatList
-        data={produtos}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 120 }}
-      />
+            <View style={[styles.card, styles.cardDanger]}>
+              <Text style={styles.cardLabel}>Estoque Baixo</Text>
+              <Text style={styles.cardDangerNumber}>
+                {produtos.filter(p => p.quantidade <= 5).length}
+              </Text>
+            </View>
 
-      {/* Botão adicionar */}
+          </View>
+
+          {/* LISTA */}
+          <Text style={styles.sectionTitle}>Produtos</Text>
+
+          {produtos.map((item) => (
+            <View key={item.id} style={styles.productItem}>
+              <Text style={styles.productName}>{item.nome}</Text>
+              <Text style={styles.productQty}>{item.quantidade} un</Text>
+            </View>
+          ))}
+
+          {produtos.length === 0 && (
+            <Text style={{ textAlign: "center", marginTop: 20, color: "#777" }}>
+              Nenhum produto cadastrado ainda.
+            </Text>
+          )}
+
+          <View style={{ height: 100 }} />
+
+        </ScrollView>
+      )}
+
+      {/* BOTÃO FIXO */}
       <TouchableOpacity
         style={styles.addButton}
-        onPress={() => navigation.navigate("Register")}
+        onPress={() => navigation.navigate("AddProduct")}
       >
         <Text style={styles.addButtonText}>Adicionar Produto</Text>
       </TouchableOpacity>
-    </SafeAreaView>
+
+    </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -76,96 +154,109 @@ const styles = StyleSheet.create({
   },
 
   header: {
-    width: "100%",
-    height: 120,
+    height: 90,
     backgroundColor: "#2E7D32",
     justifyContent: "flex-end",
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+    elevation: 4,
   },
 
   headerTitle: {
-    color: "#FFFFFF",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
-    textAlign: "center",
+    color: "#fff",
   },
 
-  cardsContainer: {
+  scrollContent: {
+    padding: 20,
+    paddingTop: 25,
+  },
+
+  cardsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 20,
-    paddingHorizontal: 20,
+    marginBottom: 22,
   },
 
   card: {
     width: "48%",
-    backgroundColor: "white",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 20,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E0E0E0",
-    paddingVertical: 20,
     alignItems: "center",
+    elevation: 2,
   },
 
   cardLabel: {
-    fontSize: 14,
-    color: "#555",
+    fontSize: 15,
+    color: "#444",
+    marginBottom: 5,
   },
 
-  cardValue: {
+  cardNumber: {
     fontSize: 26,
     fontWeight: "700",
-    marginTop: 6,
     color: "#2E7D32",
   },
 
-  listTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 30,
-    marginLeft: 20,
-    color: "#333",
+  cardDanger: {
+    backgroundColor: "#ffebee",
+    borderColor: "#ffcdd2",
   },
 
-  itemCard: {
-    width: "90%",
-    alignSelf: "center",
-    backgroundColor: "white",
-    padding: 18,
-    marginTop: 14,
+  cardDangerNumber: {
+    fontSize: 26,
+    fontWeight: "700",
+    color: "#D32F2F",
+  },
+
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#333",
+    marginBottom: 12,
+  },
+
+  productItem: {
+    backgroundColor: "#FFFFFF",
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E0E0E0",
+    marginBottom: 10,
     flexDirection: "row",
     justifyContent: "space-between",
   },
 
-  itemNome: {
+  productName: {
     fontSize: 15,
     color: "#333",
-    fontWeight: "500",
   },
 
-  itemQtd: {
-    fontSize: 14,
+  productQty: {
+    fontSize: 15,
     fontWeight: "600",
-    color: "#555",
+    color: "#2E7D32",
   },
 
   addButton: {
     position: "absolute",
-    bottom: 25,
+    bottom: 20,
     left: 20,
     right: 20,
     backgroundColor: "#2E7D32",
-    paddingVertical: 18,
-    borderRadius: 10,
+    paddingVertical: 16,
+    borderRadius: 12,
     alignItems: "center",
+    elevation: 4,
   },
 
   addButtonText: {
-    color: "#FFF",
-    fontSize: 17,
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "700",
   },
 });

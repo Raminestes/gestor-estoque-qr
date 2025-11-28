@@ -1,3 +1,4 @@
+// src/screens/RegisterScreen.js
 import React, { useState } from "react";
 import {
   View,
@@ -10,6 +11,7 @@ import {
   Alert,
 } from "react-native";
 
+import { supabase } from "../lib/supabase";
 import FormInput from "../components/FormInput";
 import PrimaryButton from "../components/PrimaryButton";
 
@@ -20,16 +22,14 @@ export default function RegisterScreen({ navigation }) {
   const [confirmPass, setConfirmPass] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const validEmail = (e) => /\S+@\S+\.\S+/.test(e);
-
-  const handleRegister = async () => {
+  async function handleRegister() {
     if (!name || !email || !password || !confirmPass) {
-      Alert.alert("Erro", "Preencha todos os campos.");
+      Alert.alert("Erro", "Preencha todos os campos!");
       return;
     }
 
-    if (!validEmail(email)) {
-      Alert.alert("Erro", "Digite um email válido.");
+    if (password.length < 6) {
+      Alert.alert("Erro", "A senha deve ter pelo menos 6 caracteres.");
       return;
     }
 
@@ -38,18 +38,32 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
 
-    try {
-      setLoading(true);
-      await new Promise((res) => setTimeout(res, 800));
+    setLoading(true);
 
-      Alert.alert("Sucesso", "Conta criada com sucesso!");
-      navigation.replace("Login");
-    } catch (err) {
-      Alert.alert("Erro", "Falha ao criar conta.");
-    } finally {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+        emailRedirectTo: "https://seu-projeto.com/login",
+      },
+    });
+
+    if (error) {
+      console.log("REGISTER ERROR:", error);
+      Alert.alert("Erro", error.message);
       setLoading(false);
+      return;
     }
-  };
+
+    Alert.alert(
+      "Verifique seu email",
+      "Enviamos um link de confirmação. Confirme para poder acessar sua conta."
+    );
+
+    navigation.replace("Login");
+    setLoading(false);
+  }
 
   return (
     <KeyboardAvoidingView
@@ -57,7 +71,6 @@ export default function RegisterScreen({ navigation }) {
       behavior={Platform.select({ ios: "padding", android: null })}
     >
       <View style={styles.card}>
-
         <Image
           source={require("../../assets/logo.png")}
           style={styles.logo}
@@ -65,7 +78,7 @@ export default function RegisterScreen({ navigation }) {
         />
 
         <Text style={styles.title}>Criar Conta</Text>
-        <Text style={styles.subtitle}>Complete os dados abaixo</Text>
+        <Text style={styles.subtitle}>Preencha os dados abaixo</Text>
 
         <View style={styles.form}>
           <FormInput
@@ -92,7 +105,7 @@ export default function RegisterScreen({ navigation }) {
           />
 
           <FormInput
-            label="Confirmar Senha"
+            label="Confirmar senha"
             value={confirmPass}
             onChangeText={setConfirmPass}
             placeholder="••••••••"
@@ -100,19 +113,18 @@ export default function RegisterScreen({ navigation }) {
           />
 
           <PrimaryButton
-            title={loading ? "Criando..." : "Criar Conta"}
+            title={loading ? "Criando..." : "Criar conta"}
             onPress={handleRegister}
             disabled={loading}
           />
 
           <TouchableOpacity
             onPress={() => navigation.navigate("Login")}
-            style={styles.loginLink}
+            style={styles.link}
           >
-            <Text style={styles.loginText}>Já tenho conta — Entrar</Text>
+            <Text style={styles.linkText}>Já tenho conta</Text>
           </TouchableOpacity>
         </View>
-
       </View>
     </KeyboardAvoidingView>
   );
@@ -121,48 +133,24 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
-    alignItems: "center",
+    backgroundColor: "#E9ECEF",
     justifyContent: "center",
-    paddingHorizontal: 20,
+    alignItems: "center",
+    padding: 20,
   },
   card: {
     width: "100%",
     maxWidth: 420,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 22,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 4,
+    backgroundColor: "#fff",
+    padding: 24,
+    borderRadius: 16,
     alignItems: "center",
+    elevation: 5,
   },
-  logo: {
-    width: 92,
-    height: 92,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#212121",
-  },
-  subtitle: {
-    fontSize: 13,
-    color: "#757575",
-    marginBottom: 18,
-  },
-  form: {
-    width: "100%",
-    marginTop: 6,
-  },
-  loginLink: {
-    marginTop: 14,
-    alignItems: "center",
-  },
-  loginText: {
-    color: "#2E7D32",
-    fontWeight: "600",
-  },
+  logo: { width: 90, height: 90, marginBottom: 10 },
+  title: { fontSize: 24, fontWeight: "700", color: "#212121" },
+  subtitle: { fontSize: 14, color: "#666", marginBottom: 20 },
+  form: { width: "100%" },
+  link: { marginTop: 14, alignSelf: "center" },
+  linkText: { color: "#2E7D32", fontWeight: "600" },
 });
