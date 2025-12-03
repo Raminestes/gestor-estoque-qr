@@ -24,47 +24,64 @@ export default function AddProductScreen() {
   const [loading, setLoading] = useState(false);
 
   async function handleSave() {
-    if (!nome || !quantidade || !preco) {
-      Alert.alert("Erro", "Preencha todos os campos!");
+    if (!nome || !quantidade) {
+      Alert.alert("Erro", "Preencha nome e quantidade!");
       return;
     }
 
+    if (Number(quantidade) < 0) {
+      Alert.alert("Erro", "A quantidade não pode ser negativa.");
+      return;
+    }
+
+    setLoading(true);
+
+    // PEGAR USUÁRIO LOGADO
     const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      Alert.alert("Erro", "Falha ao obter usuário.");
+      setLoading(false);
+      return;
+    }
+
+    const user = session?.user;
 
     if (!user) {
       Alert.alert("Erro", "Usuário não autenticado.");
+      setLoading(false);
       return;
     }
 
-    try {
-      setLoading(true);
+    // 🔥 CONVERTER PREÇO COM VÍRGULA PARA PONTO
+    const precoFinal = preco
+      ? Number(preco.replace(",", "."))
+      : null;
 
-      const { error } = await supabase.from("produtos").insert([
-        {
-          user_id: user.id,
-          nome,
-          quantidade: Number(quantidade),
-          preco: Number(preco),
-        },
-      ]);
+    // SALVAR
+    const { error } = await supabase.from("produtos").insert([
+      {
+        user_id: user.id,
+        nome,
+        quantidade: Number(quantidade),
+        preco: precoFinal,
+      },
+    ]);
 
-      if (error) {
-        console.log(error);
-        Alert.alert("Erro ao salvar", error.message);
-        return;
-      }
-
-      Alert.alert("Sucesso!", "Produto cadastrado.");
-      navigation.goBack();
-    } catch (err) {
-      console.log("SAVE ERROR:", err);
-      Alert.alert("Erro inesperado", "Tente novamente.");
-    } finally {
+    if (error) {
+      Alert.alert("Erro ao salvar", error.message);
       setLoading(false);
+      return;
     }
+
+    Alert.alert("Sucesso!", "Produto cadastrado.");
+    setLoading(false);
+
+    // AGORA VOLTA PARA O DASHBOARD E FORÇA O REFRESH
+    navigation.navigate("Dashboard", { refresh: true });
   }
 
   return (
@@ -97,10 +114,10 @@ export default function AddProductScreen() {
 
         <FormInput
           label="Preço"
-          placeholder="Ex: 59.90"
+          placeholder="Ex: 59,90"
           value={preco}
-          onChangeText={setPreco}
-          keyboardType="decimal-pad"
+          onChangeText={(val) => setPreco(val.replace(".", ","))}
+          keyboardType="numeric"
         />
 
         <PrimaryButton

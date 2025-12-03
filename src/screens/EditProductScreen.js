@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ActivityIndicator
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
 
@@ -24,9 +25,14 @@ export default function EditProductScreen() {
   const [nome, setNome] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [preco, setPreco] = useState("");
-  const [loading, setLoading] = useState(false);
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
+  // ================================
+  // CARREGAR PRODUTO
+  // ================================
   useEffect(() => {
     async function loadProduct() {
       const { data, error } = await supabase
@@ -37,36 +43,64 @@ export default function EditProductScreen() {
 
       if (error) {
         Alert.alert("Erro", "Não foi possível carregar o produto.");
+        setLoading(false);
         return;
       }
 
-      setNome(data.nome);
-      setQuantidade(String(data.quantidade));
-      setPreco(String(data.preco || ""));
+      setNome(data.nome || "");
+      setQuantidade(String(data.quantidade || "0"));
+
+      // 🔥 PREPARA O PREÇO PARA MOSTRAR NO INPUT (com vírgula)
+      setPreco(
+        data.preco != null
+          ? String(data.preco).replace(".", ",")
+          : ""
+      );
+
+      setLoading(false);
     }
 
     loadProduct();
   }, []);
 
-
+  // ================================
+  // SALVAR ALTERAÇÕES
+  // ================================
   async function handleSave() {
-    if (!nome || !quantidade) {
-      Alert.alert("Erro", "Preencha nome e quantidade.");
+    if (saving || deleting) return;
+
+    if (!nome.trim()) {
+      Alert.alert("Erro", "Preencha o nome do produto.");
       return;
     }
 
-    setLoading(true);
+    if (Number(quantidade) < 0) {
+      Alert.alert("Erro", "A quantidade não pode ser negativa.");
+      return;
+    }
+
+    // 🔥 PREPARA O PREÇO PARA O BANCO (vírgula → ponto)
+    const precoFinal = preco
+      ? Number(preco.replace(",", "."))
+      : null;
+
+    if (precoFinal < 0) {
+      Alert.alert("Erro", "O preço não pode ser negativo.");
+      return;
+    }
+
+    setSaving(true);
 
     const { error } = await supabase
       .from("produtos")
       .update({
         nome,
         quantidade: Number(quantidade),
-        preco: preco ? Number(preco) : null,
+        preco: precoFinal,
       })
       .eq("id", productId);
 
-    setLoading(false);
+    setSaving(false);
 
     if (error) {
       Alert.alert("Erro", "Não foi possível atualizar o produto.");
@@ -74,35 +108,54 @@ export default function EditProductScreen() {
     }
 
     Alert.alert("Sucesso", "Produto atualizado!");
-    navigation.goBack();
+
+    // VOLTA PARA DASHBOARD E RECARREGA
+    navigation.navigate("Dashboard", { refresh: true });
   }
 
-  
-  async function handleDelete() {
+  // ================================
+  // EXCLUIR PRODUTO
+  // ================================
+  async function executeDelete() {
+    setDeleting(true);
+
+    const { error } = await supabase
+      .from("produtos")
+      .delete()
+      .eq("id", productId);
+
+    setDeleting(false);
+
+    if (error) {
+      Alert.alert("Erro", "Não foi possível excluir o produto.");
+      return;
+    }
+
+    Alert.alert("Removido", "Produto excluído.");
+    navigation.navigate("Dashboard", { refresh: true });
+  }
+
+  function handleDelete() {
+    if (saving || deleting) return;
+
     Alert.alert(
       "Excluir Produto",
       "Tem certeza que deseja excluir este item?",
       [
         { text: "Cancelar", style: "cancel" },
-        {
-          text: "Excluir",
-          style: "destructive",
-          onPress: async () => {
-            const { error } = await supabase
-              .from("produtos")
-              .delete()
-              .eq("id", productId);
-
-            if (error) {
-              Alert.alert("Erro", "Não foi possível excluir o produto.");
-              return;
-            }
-
-            Alert.alert("Removido", "Produto excluído.");
-            navigation.goBack();
-          },
-        },
+        { text: "Excluir", style: "destructive", onPress: executeDelete },
       ]
+    );
+  }
+
+  // ================================
+  // LOADING INICIAL
+  // ================================
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#1976D2" />
+      </View>
     );
   }
 
@@ -134,22 +187,31 @@ export default function EditProductScreen() {
         <FormInput
           label="Preço"
           value={preco}
-          onChangeText={setPreco}
+          onChangeText={(val) => setPreco(val.replace(".", ","))}
           keyboardType="numeric"
-          placeholder="Ex: 59.90"
+          placeholder="Ex: 59,90"
         />
 
         <PrimaryButton
-          title={loading ? "Salvando..." : "Salvar Alterações"}
+          title={saving ? "Salvando..." : "Salvar Alterações"}
           onPress={handleSave}
-          disabled={loading}
+          disabled={saving || deleting}
         />
 
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
-          <Text style={styles.deleteText}>Excluir Produto</Text>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDelete}
+          disabled={saving || deleting}
+        >
+          <Text style={styles.deleteText}>
+            {deleting ? "Excluindo..." : "Excluir Produto"}
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.cancelButton}
+          onPress={() => navigation.goBack()}
+        >
           <Text style={styles.cancelText}>Cancelar</Text>
         </TouchableOpacity>
 
@@ -159,6 +221,9 @@ export default function EditProductScreen() {
 }
 
 
+// ================================
+// ESTILOS
+// ================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -167,6 +232,12 @@ const styles = StyleSheet.create({
   content: {
     padding: 20,
     paddingTop: 30,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFF",
   },
   title: {
     fontSize: 22,
