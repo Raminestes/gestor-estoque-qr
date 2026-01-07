@@ -57,16 +57,11 @@ Este projeto permite:
 ```bash
 
 git clone https://github.com/Raminestes/gestor-estoque-qr.git
-
-
-
+Entre na pasta:cd gestor-estoque-qr
+Instale as dependências:npm install
+Inicie o projeto:npx expo start
 
 
 🎯 Objetivo Acadêmico
 
-
-
 Este projeto foi desenvolvido como parte de atividades acadêmicas com foco em aprendizado prático sobre desenvolvimento mobile, integração com hardware (câmera) e persistência de dados.
-
-
-
